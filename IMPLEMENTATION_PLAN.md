@@ -1681,7 +1681,7 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
     await api.register(healthRoutes);
   }, { prefix: '/api/v1' });
 
-  app.setErrorHandler((err, req, reply) => {
+  app.setErrorHandler<Error & { statusCode?: number }>((err, req, reply) => {
     if (isKnownError(err)) {
       const body: Record<string, unknown> = { error: err.code, message: err.message };
       if (err.code === 'INSUFFICIENT_STOCK') {
@@ -1689,7 +1689,7 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
       }
       return reply.status(err.httpStatus).send(body);
     }
-    if ((err as { statusCode?: number }).statusCode === 400) {
+    if (err.statusCode === 400) {
       return reply.status(400).send({ error: 'BAD_REQUEST', message: err.message });
     }
     req.log.error(err);
