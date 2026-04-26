@@ -5,13 +5,11 @@ services:
       POSTGRES_DB: scos
       POSTGRES_USER: scos
       POSTGRES_PASSWORD: scos
-    ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scos -d scos"]
       interval: 2s
       timeout: 5s
-      retries: 10
+      retries: 30
 
   api:
     build:
@@ -28,6 +26,3 @@ services:
       sh -c "node apps/api/dist/db/migrate.js &&
              node apps/api/dist/db/seed.js &&
              node apps/api/dist/server.js"
-
-volumes:
-  pgdata:
