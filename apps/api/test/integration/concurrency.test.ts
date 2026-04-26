@@ -35,8 +35,15 @@ describe('concurrent submitOrder', () => {
       const reject = rejected[0] as PromiseRejectedResult;
       expect(reject.reason).toBeInstanceOf(InsufficientStockError);
 
+      const win = (fulfilled[0] as PromiseFulfilledResult<Awaited<ReturnType<typeof submitOrder>>>).value;
+      const wonUnits = win.shipments.reduce((s, x) => s + x.quantity, 0);
+      expect(wonUnits).toBe(100);
+
       const stockRow = await env.db.execute(sql`select stock from warehouses where id = 'hong-kong'`);
       expect((stockRow.rows[0] as { stock: number }).stock).toBe(0);
+
+      const orderCount = await env.db.execute(sql`select count(*)::int as n from orders`);
+      expect((orderCount.rows[0] as { n: number }).n).toBe(1);
     }
   }, 60_000);
 });
