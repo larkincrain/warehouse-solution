@@ -4,6 +4,7 @@ import swaggerUi from '@fastify/swagger-ui';
 import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { isKnownError } from './errors.js';
 import { healthRoutes } from './routes/health.js';
+import { orderRoutes } from './routes/orders.js';
 
 export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -26,6 +27,7 @@ export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {
 
   await app.register(async (api) => {
     await api.register(healthRoutes);
+    await api.register(orderRoutes, { prefix: '/orders' });
   }, { prefix: '/api/v1' });
 
   app.setErrorHandler<Error & { statusCode?: number }>((err, req, reply) => {
