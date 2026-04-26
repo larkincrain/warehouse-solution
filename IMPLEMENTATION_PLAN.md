@@ -1121,7 +1121,6 @@ export function planShipment(
   for (const { w, distanceKm } of ranked) {
     if (remaining === 0) break;
     const take = Math.min(w.stock, remaining);
-    if (take === 0) continue;
     const cents = legCostCents(distanceKm, take);
     legs.push({
       warehouseId: w.id,
