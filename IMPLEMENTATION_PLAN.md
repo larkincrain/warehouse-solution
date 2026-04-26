@@ -1942,7 +1942,7 @@ describe('POST /api/v1/orders/verify', () => {
     const res = await env.app.inject({
       method: 'POST',
       url: '/api/v1/orders/verify',
-      payload: { quantity: 1, shippingAddress: { latitude: -54.8, longitude: -68.3 } }, // Ushuaia
+      payload: { quantity: 1, shippingAddress: { latitude: -77.85, longitude: 166.67 } }, // McMurdo (Ushuaia is too close to São Paulo to trigger the rule for 1 unit)
     });
     expect(res.statusCode).toBe(200);
     const body = res.json();
