@@ -1677,15 +1677,13 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
   });
   await app.register(swaggerUi, { routePrefix: '/docs' });
 
-  await app.register(async (api) => {
-    await api.register(healthRoutes);
-  }, { prefix: '/api/v1' });
-
+  // setErrorHandler MUST be registered BEFORE child plugin contexts
+  // (Fastify v5 only flows error handlers down to children registered after the call).
   app.setErrorHandler<Error & { statusCode?: number }>((err, req, reply) => {
     if (isKnownError(err)) {
       const body: Record<string, unknown> = { error: err.code, message: err.message };
       if (err.code === 'INSUFFICIENT_STOCK') {
-        body.availableStock = (err as { availableStock: unknown }).availableStock;
+        body.availableStock = err.availableStock;
       }
       return reply.status(err.httpStatus).send(body);
     }
@@ -1695,6 +1693,10 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
     req.log.error(err);
     return reply.status(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
   });
+
+  await app.register(async (api) => {
+    await api.register(healthRoutes);
+  }, { prefix: '/api/v1' });
 
   return app;
 }
