@@ -5,10 +5,13 @@ import {
   SubmitOrderResponseSchema,
   InsufficientStockErrorSchema,
   InvalidOrderErrorSchema,
+  OrdersListQuerySchema,
+  OrdersListResponseSchema,
 } from '@scos/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { desc, eq, lt } from 'drizzle-orm';
 import { db } from '../db/client.js';
-import { warehouses } from '../db/schema.js';
+import { orders, warehouses } from '../db/schema.js';
 import { planShipment } from '../domain/shipment-planner.js';
 import { calculateOrderTotals, discountPercentForQuantity } from '../domain/pricing.js';
 import { isOrderValid } from '../domain/order-validator.js';
@@ -95,5 +98,57 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       invalidReason: null,
       shipmentPlan,
     });
+  });
+
+  app.get('/', {
+    schema: {
+      querystring: OrdersListQuerySchema,
+      response: { 200: OrdersListResponseSchema },
+    },
+  }, async (req) => {
+    const { limit, cursor } = req.query;
+    const cursorRow = cursor
+      ? await db().query.orders.findFirst({ where: eq(orders.id, cursor) })
+      : undefined;
+
+    const where = cursorRow ? lt(orders.createdAt, cursorRow.createdAt) : undefined;
+
+    const rows = await db().query.orders.findMany({
+      where,
+      orderBy: [desc(orders.createdAt)],
+      limit: limit + 1,
+      with: { shipments: { with: { warehouse: true } } },
+    });
+
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const nextCursor = hasMore ? page[page.length - 1]?.id ?? null : null;
+
+    return {
+      orders: page.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        quantity: o.quantity,
+        shippingAddress: { latitude: o.shippingLat, longitude: o.shippingLng },
+        totalBeforeDiscountCents: o.totalBeforeDiscountCents,
+        discountCents: o.discountCents,
+        discountPercent: discountPercentForQuantity(o.quantity),
+        totalAfterDiscountCents: o.totalAfterDiscountCents,
+        shippingCostCents: o.shippingCostCents,
+        createdAt: o.createdAt.toISOString(),
+        isValid: true,
+        invalidReason: null,
+        shipments: o.shipments.map((s) => ({
+          warehouseId: s.warehouseId,
+          warehouseName: s.warehouse.name,
+          warehouseLatitude: s.warehouse.latitude,
+          warehouseLongitude: s.warehouse.longitude,
+          quantity: s.quantity,
+          distanceKm: s.distanceKm,
+          shippingCostCents: s.shippingCostCents,
+        })),
+      })),
+      nextCursor,
+    };
   });
 };
