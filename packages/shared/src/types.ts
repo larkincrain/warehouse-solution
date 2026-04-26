@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import * as S from './schemas.js';
+import type * as S from './schemas.js';
 
 export type ShippingAddress = z.infer<typeof S.ShippingAddressSchema>;
 export type VerifyOrderRequest = z.infer<typeof S.VerifyOrderRequestSchema>;

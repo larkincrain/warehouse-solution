@@ -65,6 +65,7 @@ export const WarehouseSchema = z.object({
 export const WarehousesResponseSchema = z.array(WarehouseSchema);
 
 export const OrderSummarySchema = SubmitOrderResponseSchema.extend({
+  shippingAddress: ShippingAddressSchema,
   shipments: z.array(ShipmentLegSchema),
 }).omit({ shipmentPlan: true });
 
