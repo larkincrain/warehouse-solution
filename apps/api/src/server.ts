@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 
 const app = Fastify({ logger: true });
 
-app.get('/', async () => ({ status: 'ok' }));
+app.get('/', () => ({ status: 'ok' }));
 
 const port = Number(process.env.PORT ?? 3000);
 app.listen({ port, host: '0.0.0.0' }).catch((err) => {
