@@ -653,18 +653,20 @@ describe('haversineKm', () => {
     expect(haversineKm({ lat: 10, lng: 20 }, { lat: 10, lng: 20 })).toBe(0);
   });
 
-  it('matches LA → NY known distance (~3935 km)', () => {
+  it('matches LAX → JFK known distance (~3974 km)', () => {
+    // Spec §2 warehouse coords are airport-resolution (LAX, JFK).
     const la = { lat: 33.9425, lng: -118.408056 };
     const ny = { lat: 40.639722, lng: -73.778889 };
-    expect(haversineKm(la, ny)).toBeGreaterThan(3930);
-    expect(haversineKm(la, ny)).toBeLessThan(3950);
+    expect(haversineKm(la, ny)).toBeGreaterThan(3970);
+    expect(haversineKm(la, ny)).toBeLessThan(3980);
   });
 
-  it('matches Paris → Warsaw known distance (~1366 km)', () => {
+  it('matches CDG → WAW known distance (~1343 km)', () => {
+    // Spec §2 warehouse coords are airport-resolution (CDG, WAW).
     const paris = { lat: 49.009722, lng: 2.547778 };
     const warsaw = { lat: 52.165833, lng: 20.967222 };
-    expect(haversineKm(paris, warsaw)).toBeGreaterThan(1360);
-    expect(haversineKm(paris, warsaw)).toBeLessThan(1372);
+    expect(haversineKm(paris, warsaw)).toBeGreaterThan(1340);
+    expect(haversineKm(paris, warsaw)).toBeLessThan(1350);
   });
 
   it('antipodes are roughly π * R apart', () => {
