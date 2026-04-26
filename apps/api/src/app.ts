@@ -5,7 +5,7 @@ import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTyp
 import { isKnownError } from './errors.js';
 import { healthRoutes } from './routes/health.js';
 
-export async function buildApp(opts: { logLevel?: string } = {}): Promise<FastifyInstance> {
+export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {}): Promise<FastifyInstance> {
   const app = Fastify({
     logger: { level: opts.logLevel ?? 'info' },
   }).withTypeProvider<ZodTypeProvider>();
@@ -20,7 +20,9 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
     },
     transform: jsonSchemaTransform,
   });
-  await app.register(swaggerUi, { routePrefix: '/docs' });
+  if (opts.nodeEnv !== 'production') {
+    await app.register(swaggerUi, { routePrefix: '/docs' });
+  }
 
   await app.register(async (api) => {
     await api.register(healthRoutes);
@@ -30,12 +32,15 @@ export async function buildApp(opts: { logLevel?: string } = {}): Promise<Fastif
     if (isKnownError(err)) {
       const body: Record<string, unknown> = { error: err.code, message: err.message };
       if (err.code === 'INSUFFICIENT_STOCK') {
-        body.availableStock = (err as { availableStock: unknown }).availableStock;
+        body.availableStock = err.availableStock;
       }
       return reply.status(err.httpStatus).send(body);
     }
-    if (err.statusCode === 400) {
-      return reply.status(400).send({ error: 'BAD_REQUEST', message: err.message });
+    if (typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 500) {
+      const errorCode = err.statusCode === 400 ? 'BAD_REQUEST'
+        : err.statusCode === 404 ? 'NOT_FOUND'
+        : 'CLIENT_ERROR';
+      return reply.status(err.statusCode).send({ error: errorCode, message: err.message });
     }
     req.log.error(err);
     return reply.status(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });

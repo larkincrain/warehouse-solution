@@ -4,9 +4,12 @@ import { loadConfig } from './config.js';
 
 async function main() {
   const cfg = loadConfig();
-  const app = await buildApp({ logLevel: cfg.LOG_LEVEL });
+  const app = await buildApp({ logLevel: cfg.LOG_LEVEL, nodeEnv: cfg.NODE_ENV });
 
+  let shuttingDown = false;
   const shutdown = async (signal: string): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     app.log.info({ signal }, 'shutting down');
     await app.close();
     await closeDb();

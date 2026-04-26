@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
 import { sql } from 'drizzle-orm';
-import { z } from 'zod';
 import { HealthResponseSchema, ReadyResponseSchema } from '@scos/shared';
 import { db } from '../db/client.js';
 
@@ -17,11 +16,9 @@ export async function healthRoutes(app: FastifyInstance): Promise<void> {
     try {
       await db().execute(sql`select 1`);
       return { status: 'ok' as const };
-    } catch {
+    } catch (err) {
+      reply.log.warn({ err }, '/ready db check failed');
       return reply.status(503).send({ status: 'unavailable' as const });
     }
   });
-
-  // appease the unused import
-  z.literal('ok');
 }
