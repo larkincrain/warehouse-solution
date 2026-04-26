@@ -111,6 +111,10 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       ? await db().query.orders.findFirst({ where: eq(orders.id, cursor) })
       : undefined;
 
+    if (cursor && !cursorRow) {
+      return { orders: [], nextCursor: null };
+    }
+
     const where = cursorRow ? lt(orders.createdAt, cursorRow.createdAt) : undefined;
 
     const rows = await db().query.orders.findMany({
