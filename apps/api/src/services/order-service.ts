@@ -1,0 +1,88 @@
+import { asc, eq, sql } from 'drizzle-orm';
+import { db } from '../db/client.js';
+import { warehouses, orders, shipments } from '../db/schema.js';
+import { planShipment } from '../domain/shipment-planner.js';
+import { calculateOrderTotals } from '../domain/pricing.js';
+import { isOrderValid } from '../domain/order-validator.js';
+import { InsufficientStockError, InvalidOrderError } from '../errors.js';
+
+export interface SubmitInput {
+  quantity: number;
+  shippingLat: number;
+  shippingLng: number;
+  idempotencyKey?: string;
+}
+
+export async function submitOrder(input: SubmitInput) {
+  const d = db();
+
+  if (input.idempotencyKey) {
+    const existing = await d.query.orders.findFirst({
+      where: eq(orders.idempotencyKey, input.idempotencyKey),
+      with: { shipments: { with: { warehouse: true } } },
+    });
+    if (existing) return existing;
+  }
+
+  return d.transaction(async (tx) => {
+    const lockedWarehouses = await tx
+      .select()
+      .from(warehouses)
+      .orderBy(asc(warehouses.id))
+      .for('update');
+
+    const plan = planShipment(
+      input.quantity,
+      { lat: input.shippingLat, lng: input.shippingLng },
+      lockedWarehouses,
+    );
+
+    if (!plan.feasible) {
+      throw new InsufficientStockError(
+        lockedWarehouses.map((w) => ({ warehouseId: w.id, stock: w.stock })),
+      );
+    }
+
+    const totals = calculateOrderTotals(input.quantity);
+    if (!isOrderValid(plan.shippingCostCents, totals.totalAfterDiscountCents)) {
+      throw new InvalidOrderError('Shipping cost exceeds 15% of order total');
+    }
+
+    for (const leg of plan.legs) {
+      await tx
+        .update(warehouses)
+        .set({ stock: sql`${warehouses.stock} - ${leg.quantity}` })
+        .where(eq(warehouses.id, leg.warehouseId));
+    }
+
+    const [created] = await tx.insert(orders).values({
+      quantity: input.quantity,
+      shippingLat: input.shippingLat,
+      shippingLng: input.shippingLng,
+      totalBeforeDiscountCents: totals.totalBeforeDiscountCents,
+      discountCents: totals.discountCents,
+      totalAfterDiscountCents: totals.totalAfterDiscountCents,
+      shippingCostCents: plan.shippingCostCents,
+      idempotencyKey: input.idempotencyKey,
+    }).returning();
+
+    if (!created) throw new Error('order insert returned no row');
+
+    await tx.insert(shipments).values(
+      plan.legs.map((leg) => ({
+        orderId: created.id,
+        warehouseId: leg.warehouseId,
+        quantity: leg.quantity,
+        distanceKm: leg.distanceKm,
+        shippingCostCents: leg.shippingCostCents,
+      })),
+    );
+
+    const fresh = await tx.query.orders.findFirst({
+      where: eq(orders.id, created.id),
+      with: { shipments: { with: { warehouse: true } } },
+    });
+    if (!fresh) throw new Error('failed to re-read created order');
+    return fresh;
+  }, { isolationLevel: 'read committed' });
+}
