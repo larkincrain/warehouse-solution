@@ -25,6 +25,10 @@ export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {
     await app.register(swaggerUi, { routePrefix: '/docs' });
   }
 
+  // setErrorHandler MUST be registered BEFORE child plugin contexts.
+  // Fastify v5 only inherits error handlers into children registered AFTER
+  // this call — moving the /api/v1 register block above this would silently
+  // route all 4xx domain errors back to the default 500 fallback.
   app.setErrorHandler<Error & { statusCode?: number }>((err, req, reply) => {
     if (isKnownError(err)) {
       const body: Record<string, unknown> = { error: err.code, message: err.message };

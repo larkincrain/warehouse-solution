@@ -10,7 +10,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { db } from '../db/client.js';
 import { warehouses } from '../db/schema.js';
 import { planShipment } from '../domain/shipment-planner.js';
-import { calculateOrderTotals } from '../domain/pricing.js';
+import { calculateOrderTotals, discountPercentForQuantity } from '../domain/pricing.js';
 import { isOrderValid } from '../domain/order-validator.js';
 import { submitOrder } from '../services/order-service.js';
 
@@ -88,7 +88,7 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       quantity: order.quantity,
       totalBeforeDiscountCents: order.totalBeforeDiscountCents,
       discountCents: order.discountCents,
-      discountPercent: Math.round((order.discountCents / order.totalBeforeDiscountCents) * 100),
+      discountPercent: discountPercentForQuantity(order.quantity),
       totalAfterDiscountCents: order.totalAfterDiscountCents,
       shippingCostCents: order.shippingCostCents,
       isValid: true,
