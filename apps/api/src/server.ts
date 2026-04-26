@@ -1,11 +1,25 @@
-import Fastify from 'fastify';
+import { buildApp } from './app.js';
+import { closeDb } from './db/client.js';
+import { loadConfig } from './config.js';
 
-const app = Fastify({ logger: true });
+async function main() {
+  const cfg = loadConfig();
+  const app = await buildApp({ logLevel: cfg.LOG_LEVEL });
 
-app.get('/', () => ({ status: 'ok' }));
+  const shutdown = async (signal: string): Promise<void> => {
+    app.log.info({ signal }, 'shutting down');
+    await app.close();
+    await closeDb();
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 
-const port = Number(process.env.PORT ?? 3000);
-app.listen({ port, host: '0.0.0.0' }).catch((err) => {
-  app.log.error(err);
+  await app.listen({ port: cfg.PORT, host: '0.0.0.0' });
+}
+
+main().catch((e) => {
+  // eslint-disable-next-line no-console
+  console.error(e);
   process.exit(1);
 });
