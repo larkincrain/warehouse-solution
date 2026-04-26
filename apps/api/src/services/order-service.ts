@@ -78,11 +78,13 @@ export async function submitOrder(input: SubmitInput) {
         throw e;
       }
 
+      /* c8 ignore start -- defensive: RETURNING from INSERT cannot legitimately yield zero rows */
       if (!created) {
         throw new Error(
           `order insert returned no row (qty=${input.quantity}, lat=${input.shippingLat}, lng=${input.shippingLng})`,
         );
       }
+      /* c8 ignore stop */
 
       await tx.insert(shipments).values(
         plan.legs.map((leg) => ({
@@ -98,7 +100,9 @@ export async function submitOrder(input: SubmitInput) {
         where: eq(orders.id, created.id),
         with: { shipments: { with: { warehouse: true } } },
       });
+      /* c8 ignore start -- defensive: just-inserted row cannot fail to re-read in same tx */
       if (!fresh) throw new Error('failed to re-read created order');
+      /* c8 ignore stop */
       return fresh;
     }, { isolationLevel: 'read committed' });
   } catch (e) {

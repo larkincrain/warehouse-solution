@@ -47,3 +47,48 @@ describe('concurrent submitOrder', () => {
     }
   }, 60_000);
 });
+
+describe('concurrent submitOrder with same idempotency key', () => {
+  beforeEach(async () => {
+    await resetState(env);
+  });
+
+  it('two parallel calls with same idempotency-key resolve to same order; stock decremented once', async () => {
+    const key = '22222222-2222-2222-2222-222222222222';
+    const before = await env.db.execute(sql`select stock from warehouses where id = 'hong-kong'`);
+    const beforeStock = (before.rows[0] as { stock: number }).stock;
+
+    const order = {
+      quantity: 25,
+      shippingLat: 13.7563,
+      shippingLng: 100.5018,
+      idempotencyKey: key,
+    };
+
+    // Loop a few iterations to make the race likely
+    for (let i = 0; i < 5; i++) {
+      // Reset between iterations
+      await env.db.execute(sql`UPDATE warehouses SET stock = ${beforeStock} WHERE id = 'hong-kong'`);
+      await env.db.execute(sql`TRUNCATE TABLE shipments, orders RESTART IDENTITY CASCADE`);
+
+      const results = await Promise.allSettled([submitOrder(order), submitOrder(order)]);
+      const fulfilled = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<Awaited<ReturnType<typeof submitOrder>>>[];
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // Both should fulfill (no rejection — the loser re-reads)
+      expect(fulfilled).toHaveLength(2);
+      expect(rejected).toHaveLength(0);
+
+      // Both should return the same order id
+      expect(fulfilled[0]!.value.id).toBe(fulfilled[1]!.value.id);
+
+      // Exactly ONE order row exists in the table (no double-insert)
+      const countRes = await env.db.execute(sql`select count(*)::int as n from orders`);
+      expect((countRes.rows[0] as { n: number }).n).toBe(1);
+
+      // Stock decremented exactly once (not twice)
+      const after = await env.db.execute(sql`select stock from warehouses where id = 'hong-kong'`);
+      expect((after.rows[0] as { stock: number }).stock).toBe(beforeStock - 25);
+    }
+  }, 60_000);
+});
