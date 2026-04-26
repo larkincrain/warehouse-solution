@@ -241,7 +241,7 @@ git commit -m "chore: scaffold @scos/shared package"
     "test": "vitest run --coverage",
     "test:unit": "vitest run test/unit --coverage",
     "test:integration": "vitest run test/integration",
-    "test:e2e": "vitest run test/e2e",
+    "test:e2e": "vitest run test/e2e --no-file-parallelism",
     "lint": "eslint src test --ext .ts",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
