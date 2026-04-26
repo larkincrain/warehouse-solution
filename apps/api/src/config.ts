@@ -12,7 +12,10 @@ export type Config = z.infer<typeof ConfigSchema>;
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const parsed = ConfigSchema.safeParse(env);
   if (!parsed.success) {
-    throw new Error(`Invalid environment configuration: ${parsed.error.message}`);
+    const summary = parsed.error.issues
+      .map((i) => `${i.path.join('.') || '<root>'}: ${i.message}`)
+      .join('; ');
+    throw new Error(`Invalid environment configuration: ${summary}`);
   }
   return parsed.data;
 }
