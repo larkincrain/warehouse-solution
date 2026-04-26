@@ -4,7 +4,7 @@ import { warehouses, orders, shipments } from '../db/schema.js';
 import { planShipment } from '../domain/shipment-planner.js';
 import { calculateOrderTotals } from '../domain/pricing.js';
 import { isOrderValid } from '../domain/order-validator.js';
-import { InsufficientStockError, InvalidOrderError } from '../errors.js';
+import { InsufficientStockError, InvalidOrderError, IdempotencyReplayError, isUniqueViolation } from '../errors.js';
 
 export interface SubmitInput {
   quantity: number;
@@ -24,65 +24,95 @@ export async function submitOrder(input: SubmitInput) {
     if (existing) return existing;
   }
 
-  return d.transaction(async (tx) => {
-    const lockedWarehouses = await tx
-      .select()
-      .from(warehouses)
-      .orderBy(asc(warehouses.id))
-      .for('update');
+  try {
+    // read committed is sufficient: explicit row locks via .for('update') above
+    // give serializable behavior on the warehouse rows we mutate.
+    return await d.transaction(async (tx) => {
+      const lockedWarehouses = await tx
+        .select()
+        .from(warehouses)
+        .orderBy(asc(warehouses.id))
+        .for('update');
 
-    const plan = planShipment(
-      input.quantity,
-      { lat: input.shippingLat, lng: input.shippingLng },
-      lockedWarehouses,
-    );
-
-    if (!plan.feasible) {
-      throw new InsufficientStockError(
-        lockedWarehouses.map((w) => ({ warehouseId: w.id, stock: w.stock })),
+      const plan = planShipment(
+        input.quantity,
+        { lat: input.shippingLat, lng: input.shippingLng },
+        lockedWarehouses,
       );
+
+      if (!plan.feasible) {
+        throw new InsufficientStockError(
+          lockedWarehouses.map((w) => ({ warehouseId: w.id, stock: w.stock })),
+        );
+      }
+
+      const totals = calculateOrderTotals(input.quantity);
+      if (!isOrderValid(plan.shippingCostCents, totals.totalAfterDiscountCents)) {
+        throw new InvalidOrderError('Shipping cost exceeds 15% of order total');
+      }
+
+      for (const leg of plan.legs) {
+        await tx
+          .update(warehouses)
+          .set({ stock: sql`${warehouses.stock} - ${leg.quantity}` })
+          .where(eq(warehouses.id, leg.warehouseId));
+      }
+
+      let created;
+      try {
+        [created] = await tx.insert(orders).values({
+          quantity: input.quantity,
+          shippingLat: input.shippingLat,
+          shippingLng: input.shippingLng,
+          totalBeforeDiscountCents: totals.totalBeforeDiscountCents,
+          discountCents: totals.discountCents,
+          totalAfterDiscountCents: totals.totalAfterDiscountCents,
+          shippingCostCents: plan.shippingCostCents,
+          idempotencyKey: input.idempotencyKey,
+        }).returning();
+      } catch (e) {
+        if (input.idempotencyKey && isUniqueViolation(e, 'orders_idempotency_key_unique')) {
+          // Concurrent submit won the race. Bail out of the tx; outer code re-reads.
+          throw new IdempotencyReplayError(input.idempotencyKey);
+        }
+        throw e;
+      }
+
+      if (!created) {
+        throw new Error(
+          `order insert returned no row (qty=${input.quantity}, lat=${input.shippingLat}, lng=${input.shippingLng})`,
+        );
+      }
+
+      await tx.insert(shipments).values(
+        plan.legs.map((leg) => ({
+          orderId: created.id,
+          warehouseId: leg.warehouseId,
+          quantity: leg.quantity,
+          distanceKm: leg.distanceKm,
+          shippingCostCents: leg.shippingCostCents,
+        })),
+      );
+
+      const fresh = await tx.query.orders.findFirst({
+        where: eq(orders.id, created.id),
+        with: { shipments: { with: { warehouse: true } } },
+      });
+      if (!fresh) throw new Error('failed to re-read created order');
+      return fresh;
+    }, { isolationLevel: 'read committed' });
+  } catch (e) {
+    if (e instanceof IdempotencyReplayError) {
+      const existing = await d.query.orders.findFirst({
+        where: eq(orders.idempotencyKey, e.idempotencyKey),
+        with: { shipments: { with: { warehouse: true } } },
+      });
+      if (!existing) {
+        // The other tx aborted between our race-loss and our re-read. Re-throw.
+        throw e;
+      }
+      return existing;
     }
-
-    const totals = calculateOrderTotals(input.quantity);
-    if (!isOrderValid(plan.shippingCostCents, totals.totalAfterDiscountCents)) {
-      throw new InvalidOrderError('Shipping cost exceeds 15% of order total');
-    }
-
-    for (const leg of plan.legs) {
-      await tx
-        .update(warehouses)
-        .set({ stock: sql`${warehouses.stock} - ${leg.quantity}` })
-        .where(eq(warehouses.id, leg.warehouseId));
-    }
-
-    const [created] = await tx.insert(orders).values({
-      quantity: input.quantity,
-      shippingLat: input.shippingLat,
-      shippingLng: input.shippingLng,
-      totalBeforeDiscountCents: totals.totalBeforeDiscountCents,
-      discountCents: totals.discountCents,
-      totalAfterDiscountCents: totals.totalAfterDiscountCents,
-      shippingCostCents: plan.shippingCostCents,
-      idempotencyKey: input.idempotencyKey,
-    }).returning();
-
-    if (!created) throw new Error('order insert returned no row');
-
-    await tx.insert(shipments).values(
-      plan.legs.map((leg) => ({
-        orderId: created.id,
-        warehouseId: leg.warehouseId,
-        quantity: leg.quantity,
-        distanceKm: leg.distanceKm,
-        shippingCostCents: leg.shippingCostCents,
-      })),
-    );
-
-    const fresh = await tx.query.orders.findFirst({
-      where: eq(orders.id, created.id),
-      with: { shipments: { with: { warehouse: true } } },
-    });
-    if (!fresh) throw new Error('failed to re-read created order');
-    return fresh;
-  }, { isolationLevel: 'read committed' });
+    throw e;
+  }
 }
