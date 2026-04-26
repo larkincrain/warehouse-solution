@@ -480,6 +480,7 @@ export const WarehouseSchema = z.object({
 export const WarehousesResponseSchema = z.array(WarehouseSchema);
 
 export const OrderSummarySchema = SubmitOrderResponseSchema.extend({
+  shippingAddress: ShippingAddressSchema,
   shipments: z.array(ShipmentLegSchema),
 }).omit({ shipmentPlan: true });
 
@@ -506,7 +507,7 @@ export const ReadyResponseSchema = z.object({
 
 ```typescript
 import type { z } from 'zod';
-import * as S from './schemas.js';
+import type * as S from './schemas.js';
 
 export type ShippingAddress = z.infer<typeof S.ShippingAddressSchema>;
 export type VerifyOrderRequest = z.infer<typeof S.VerifyOrderRequestSchema>;
@@ -2460,6 +2461,7 @@ Append inside `orderRoutes`:
         id: o.id,
         orderNumber: o.orderNumber,
         quantity: o.quantity,
+        shippingAddress: { latitude: o.shippingLat, longitude: o.shippingLng },
         totalBeforeDiscountCents: o.totalBeforeDiscountCents,
         discountCents: o.discountCents,
         discountPercent: Math.round((o.discountCents / o.totalBeforeDiscountCents) * 100),
