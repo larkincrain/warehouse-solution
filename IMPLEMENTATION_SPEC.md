@@ -166,7 +166,7 @@ screencloud-oms/
 │       │       ├── verify.e2e.test.ts
 │       │       ├── submit-flow.e2e.test.ts
 │       │       └── idempotency.e2e.test.ts
-│       ├── Dockerfile                    # multi-stage build → distroless final image
+│       ├── Dockerfile                    # multi-stage: build → node:20-bookworm-slim runner
 │       ├── package.json
 │       ├── tsconfig.json
 │       └── vitest.config.ts              # coverage thresholds enforced
@@ -705,7 +705,7 @@ merge to main ──► deploy.yml ─► build + push image ──► Fly.io PR
 ### `.github/workflows/deploy.yml`
 - **Triggers:** PR (preview) + push to main (production).
 - **Steps:**
-  1. Build the multi-stage Dockerfile (Node build → distroless final image).
+  1. Build the multi-stage Dockerfile (Node build → `node:20-bookworm-slim` runner). **Bookworm-slim is preferred over distroless for this challenge** because it includes a shell — needed by the compose `command:` chain and Fly's `release_command` to sequence `npm run db:migrate && npm run db:seed && node ...`. Distroless would force shifting all sequencing into a wrapper script or release pipeline step, adding moving parts for no real benefit at this scale.
   2. Push to GHCR with tags `:sha-<short>`, `:branch-<name>`, plus `:latest` on main.
   3. Deploy:
      - **PR:** `flyctl deploy --app scos-oms-pr-${{ github.event.number }}` — ephemeral preview app with its own throwaway DB. Bot comments the URL on the PR.
@@ -861,7 +861,7 @@ Build in this order to maximize the chance of having a working CI'd, deployed sy
 6. **API: list endpoints** (orders, warehouses) — future-frontend hooks.
 7. **Health/ready endpoints + observability wiring.**
 8. **E2E suite** against the compose stack.
-9. **Dockerfile** (multi-stage → distroless) + **`fly.toml`** with `release_command` for migrations.
+9. **Dockerfile** (multi-stage → `node:20-bookworm-slim` runner; shell included so compose `command:` chains and Fly `release_command` can sequence migrate → seed → start) + **`fly.toml`** with `release_command` for migrations.
 10. **CI workflows** (ci.yml, e2e.yml, deploy.yml). Verify preview deploys land per PR.
 11. **README + ARCHITECTURE.md.** Block out time; this is meaningful grade weight.
 12. **Production deploy.** Run a smoke verify+submit against the live URL; link from the README.

@@ -24,5 +24,7 @@ RUN npm ci --workspaces --omit=dev
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/apps/api/dist apps/api/dist
 COPY --from=build /repo/apps/api/drizzle apps/api/drizzle
+RUN chown -R node:node /repo
+USER node
 EXPOSE 3000
 CMD ["node", "apps/api/dist/server.js"]
