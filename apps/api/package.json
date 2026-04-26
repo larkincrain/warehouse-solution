@@ -1,0 +1,45 @@
+{
+  "name": "@scos/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run --coverage",
+    "test:unit": "vitest run test/unit --coverage",
+    "test:integration": "vitest run test/integration",
+    "test:e2e": "vitest run test/e2e",
+    "lint": "eslint src test --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@fastify/swagger": "^9.0.0",
+    "@fastify/swagger-ui": "^5.0.0",
+    "@scos/shared": "*",
+    "drizzle-orm": "^0.36.0",
+    "fastify": "^5.0.0",
+    "fastify-type-provider-zod": "^4.0.0",
+    "pg": "^8.13.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^10.13.0",
+    "@types/node": "^20.16.0",
+    "@types/pg": "^8.11.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "drizzle-kit": "^0.28.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "undici": "^6.20.0",
+    "vitest": "^2.1.0"
+  }
+}
