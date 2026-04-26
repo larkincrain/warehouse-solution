@@ -5,6 +5,7 @@ import { jsonSchemaTransform, serializerCompiler, validatorCompiler, type ZodTyp
 import { isKnownError } from './errors.js';
 import { healthRoutes } from './routes/health.js';
 import { orderRoutes } from './routes/orders.js';
+import { warehouseRoutes } from './routes/warehouses.js';
 
 export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -50,6 +51,7 @@ export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {
   await app.register(async (api) => {
     await api.register(healthRoutes);
     await api.register(orderRoutes, { prefix: '/orders' });
+    await api.register(warehouseRoutes, { prefix: '/warehouses' });
   }, { prefix: '/api/v1' });
 
   return app;
