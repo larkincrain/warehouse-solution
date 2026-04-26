@@ -25,11 +25,6 @@ export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {
     await app.register(swaggerUi, { routePrefix: '/docs' });
   }
 
-  await app.register(async (api) => {
-    await api.register(healthRoutes);
-    await api.register(orderRoutes, { prefix: '/orders' });
-  }, { prefix: '/api/v1' });
-
   app.setErrorHandler<Error & { statusCode?: number }>((err, req, reply) => {
     if (isKnownError(err)) {
       const body: Record<string, unknown> = { error: err.code, message: err.message };
@@ -47,6 +42,11 @@ export async function buildApp(opts: { logLevel?: string; nodeEnv?: string } = {
     req.log.error(err);
     return reply.status(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
   });
+
+  await app.register(async (api) => {
+    await api.register(healthRoutes);
+    await api.register(orderRoutes, { prefix: '/orders' });
+  }, { prefix: '/api/v1' });
 
   return app;
 }
