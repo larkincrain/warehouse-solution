@@ -20,6 +20,9 @@ describe('POST /api/v1/orders/verify', () => {
     expect(body.isValid).toBe(true);
     expect(body.invalidReason).toBeNull();
     expect(body.discountPercent).toBe(15);
+    expect(body.totalBeforeDiscountCents).toBe(2_250_000); // 150 * $150.00
+    expect(body.discountCents).toBe(337_500);              // 15% of 2_250_000
+    expect(body.totalAfterDiscountCents).toBe(1_912_500);
     expect(body.shipmentPlan.length).toBeGreaterThan(0);
     expect(body.shipmentPlan.reduce((s, l) => s + l.quantity, 0)).toBe(150);
   });

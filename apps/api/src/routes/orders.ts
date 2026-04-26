@@ -34,7 +34,10 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
 
     return {
       quantity,
-      ...totals,
+      totalBeforeDiscountCents: totals.totalBeforeDiscountCents,
+      discountPercent: totals.discountPercent,
+      discountCents: totals.discountCents,
+      totalAfterDiscountCents: totals.totalAfterDiscountCents,
       shippingCostCents: plan.shippingCostCents,
       isValid,
       invalidReason,
