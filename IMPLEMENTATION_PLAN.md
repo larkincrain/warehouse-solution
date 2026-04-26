@@ -2692,8 +2692,8 @@ Append:
       db: { condition: service_healthy }
     ports: ["3000:3000"]
     command: >
-      sh -c "npm run db:migrate -w @scos/api &&
-             npm run db:seed -w @scos/api &&
+      sh -c "node apps/api/dist/db/migrate.js &&
+             node apps/api/dist/db/seed.js &&
              node apps/api/dist/server.js"
 ```
 
@@ -2725,8 +2725,8 @@ services:
       db: { condition: service_healthy }
     ports: ["3000:3000"]
     command: >
-      sh -c "npm run db:migrate -w @scos/api &&
-             npm run db:seed -w @scos/api &&
+      sh -c "node apps/api/dist/db/migrate.js &&
+             node apps/api/dist/db/seed.js &&
              node apps/api/dist/server.js"
 ```
 
