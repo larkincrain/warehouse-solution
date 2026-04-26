@@ -2,7 +2,9 @@ import { request } from 'undici';
 
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 
-export async function waitForReady(timeoutMs = 60_000): Promise<void> {
+const DEFAULT_READY_TIMEOUT_MS = Number(process.env.E2E_WAIT_TIMEOUT_MS ?? 120_000);
+
+export async function waitForReady(timeoutMs = DEFAULT_READY_TIMEOUT_MS): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let lastErr: unknown;
   while (Date.now() < deadline) {
