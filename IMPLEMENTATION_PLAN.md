@@ -326,7 +326,7 @@ module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: {
-    project: ['./tsconfig.json', './tsconfig.test.json'],
+    project: './tsconfig.test.json',
     tsconfigRootDir: __dirname,
   },
   plugins: ['@typescript-eslint'],
@@ -350,7 +350,8 @@ module.exports = {
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "rootDir": "." },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*"],
+  "exclude": ["dist", "node_modules"]
 }
 ```
 
