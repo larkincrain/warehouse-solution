@@ -72,7 +72,7 @@ describe('concurrent submitOrder with same idempotency key', () => {
       await env.db.execute(sql`TRUNCATE TABLE shipments, orders RESTART IDENTITY CASCADE`);
 
       const results = await Promise.allSettled([submitOrder(order), submitOrder(order)]);
-      const fulfilled = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<Awaited<ReturnType<typeof submitOrder>>>[];
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
       const rejected = results.filter((r) => r.status === 'rejected');
 
       // Both should fulfill (no rejection — the loser re-reads)
