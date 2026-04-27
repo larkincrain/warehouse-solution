@@ -17,7 +17,7 @@ const SubmitHeadersSchema = z.object({
   'idempotency-key': z.string().uuid().optional(),
 });
 
-export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
+export const orderRoutes: FastifyPluginAsyncZod = (app) => {
 
   app.post('/verify', {
     schema: {
@@ -92,8 +92,10 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       orders: rows.map(toListItem),
       nextCursor,
     };
-    
+
   });
+
+  return Promise.resolve();
 };
 
 function toSubmitResponse(order: OrderWithShipments) {

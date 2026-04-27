@@ -35,6 +35,7 @@ async function main() {
 }
 
 main().catch((e) => {
+  // eslint-disable-next-line no-console -- logger isn't available if bootstrap fails
   console.error(e);
   process.exit(1);
 });

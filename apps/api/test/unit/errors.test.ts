@@ -6,6 +6,7 @@ import {
   IdempotencyReplayError,
   isKnownError,
   isUniqueViolation,
+  isTransientDbError,
 } from '../../src/errors.js';
 
 describe('errors', () => {
@@ -43,5 +44,13 @@ describe('errors', () => {
     expect(isUniqueViolation({ code: '23503' })).toBe(false);
     expect(isUniqueViolation(null)).toBe(false);
     expect(isUniqueViolation('not-an-object')).toBe(false);
+  });
+  it('isTransientDbError matches 40001 and 40P01 only', () => {
+    expect(isTransientDbError({ code: '40001' })).toBe(true);
+    expect(isTransientDbError({ code: '40P01' })).toBe(true);
+    expect(isTransientDbError({ code: '23505' })).toBe(false);
+    expect(isTransientDbError({})).toBe(false);
+    expect(isTransientDbError(null)).toBe(false);
+    expect(isTransientDbError('not-an-object')).toBe(false);
   });
 });

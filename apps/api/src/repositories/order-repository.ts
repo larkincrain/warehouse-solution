@@ -19,13 +19,13 @@ export function createOrderRepository(db: Db) {
       db.query.orders.findFirst({
         where: eq(orders.idempotencyKey, key),
         with: { shipments: { with: { warehouse: true } } },
-      }) as Promise<OrderWithShipments | undefined>,
+      }),
 
     findById: (id: string): Promise<OrderWithShipments | undefined> =>
       db.query.orders.findFirst({
         where: eq(orders.id, id),
         with: { shipments: { with: { warehouse: true } } },
-      }) as Promise<OrderWithShipments | undefined>,
+      }),
 
     /**
      * Inserts an order; on idempotency-key conflict returns `null` (caller
@@ -53,7 +53,7 @@ export function createOrderRepository(db: Db) {
       tx.query.orders.findFirst({
         where: eq(orders.id, id),
         with: { shipments: { with: { warehouse: true } } },
-      }) as Promise<OrderWithShipments | undefined>,
+      }),
 
     /**
      * Cursor pagination using a composite (createdAt, id) key so rows sharing a
@@ -77,7 +77,7 @@ export function createOrderRepository(db: Db) {
         limit: opts.limit,
         with: { shipments: { with: { warehouse: true } } },
       });
-      return rows as OrderWithShipments[];
+      return rows;
     },
   };
 }
