@@ -8,6 +8,13 @@
       "when": 1777172844850,
       "tag": "0000_lonely_pepper_potts",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777172844851,
+      "tag": "0001_add_request_fingerprint",
+      "breakpoints": true
     }
   ]
 }

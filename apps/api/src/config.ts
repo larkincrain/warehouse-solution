@@ -5,6 +5,12 @@ const ConfigSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().positive().default(3000),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  DB_POOL_MAX: z.coerce.number().int().positive().default(10),
+  DB_IDLE_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(30_000),
+  DB_CONNECTION_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(5_000),
+  DB_STATEMENT_TIMEOUT_MS: z.coerce.number().int().nonnegative().default(10_000),
+  DB_SLOW_QUERY_MS: z.coerce.number().int().nonnegative().default(250),
+  DB_TX_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;

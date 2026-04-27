@@ -49,6 +49,16 @@ export const InsufficientStockErrorSchema = z.object({
   })),
 });
 
+export const IdempotencyKeyConflictErrorSchema = z.object({
+  error: z.literal('IDEMPOTENCY_KEY_REUSED'),
+  message: z.string(),
+});
+
+export const SubmitConflictErrorSchema = z.discriminatedUnion('error', [
+  InsufficientStockErrorSchema,
+  IdempotencyKeyConflictErrorSchema,
+]);
+
 export const InvalidOrderErrorSchema = z.object({
   error: z.literal('INVALID_ORDER'),
   message: z.string(),

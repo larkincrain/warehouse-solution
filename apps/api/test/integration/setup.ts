@@ -3,7 +3,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sql } from 'drizzle-orm';
-import { closeDb, createDb, type Db } from '../../src/db/client.js';
+import { closePool, createDb, type Db } from '../../src/db/client.js';
 import { warehouses } from '../../src/db/schema.js';
 import { buildApp } from '../../src/app.js';
 import type { FastifyInstance } from 'fastify';
@@ -35,7 +35,8 @@ export async function startTestEnv(): Promise<TestEnv> {
   await d.execute(sql`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
   await migrate(d, { migrationsFolder });
   await d.insert(warehouses).values(SEED).onConflictDoNothing({ target: warehouses.id });
-  const app = await buildApp({ logLevel: 'silent' });
+  // Pass the test-owned db into the app so the app does not open a second pool.
+  const app = await buildApp({ logLevel: 'silent', db: d });
   return { app, db: d, container };
 }
 
@@ -49,6 +50,6 @@ export async function resetState(env: TestEnv): Promise<void> {
 
 export async function stopTestEnv(env: TestEnv): Promise<void> {
   await env.app.close();
-  await closeDb();
+  await closePool(env.db);
   await env.container.stop();
 }

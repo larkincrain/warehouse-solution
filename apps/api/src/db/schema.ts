@@ -23,6 +23,7 @@ export const orders = pgTable('orders', {
   totalAfterDiscountCents: integer('total_after_discount_cents').notNull(),
   shippingCostCents: integer('shipping_cost_cents').notNull(),
   idempotencyKey: text('idempotency_key').unique(),
+  requestFingerprint: text('request_fingerprint'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   quantityPositive: check('orders_quantity_positive', sql`${t.quantity} > 0`),

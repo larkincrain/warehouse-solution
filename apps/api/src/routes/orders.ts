@@ -1,103 +1,77 @@
+import { z } from 'zod';
 import {
   VerifyOrderRequestSchema,
   VerifyOrderResponseSchema,
   SubmitOrderRequestSchema,
   SubmitOrderResponseSchema,
-  InsufficientStockErrorSchema,
+  SubmitConflictErrorSchema,
   InvalidOrderErrorSchema,
   OrdersListQuerySchema,
   OrdersListResponseSchema,
 } from '@scos/shared';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { desc, eq, lt } from 'drizzle-orm';
-import { db } from '../db/client.js';
-import { orders, warehouses } from '../db/schema.js';
-import { planShipment } from '../domain/shipment-planner.js';
-import { calculateOrderTotals, discountPercentForQuantity } from '../domain/pricing.js';
-import { isOrderValid } from '../domain/order-validator.js';
-import { submitOrder } from '../services/order-service.js';
+import { discountPercentForQuantity } from '../domain/pricing.js';
+import type { OrderWithShipments } from '../repositories/order-repository.js';
 
-// eslint-disable-next-line @typescript-eslint/require-await
+const SubmitHeadersSchema = z.object({
+  'idempotency-key': z.string().uuid().optional(),
+});
+
 export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
+
   app.post('/verify', {
     schema: {
       body: VerifyOrderRequestSchema,
       response: { 200: VerifyOrderResponseSchema },
     },
   }, async (req) => {
+
     const { quantity, shippingAddress } = req.body;
 
-    const ws = await db().select().from(warehouses);
-    const plan = planShipment(quantity, { lat: shippingAddress.latitude, lng: shippingAddress.longitude }, ws);
-    const totals = calculateOrderTotals(quantity);
-
-    let isValid = plan.feasible;
-    let invalidReason: string | null = null;
-    if (!plan.feasible) {
-      invalidReason = 'Insufficient stock across all warehouses';
-    } else if (!isOrderValid(plan.shippingCostCents, totals.totalAfterDiscountCents)) {
-      isValid = false;
-      invalidReason = 'Shipping cost exceeds 15% of order total';
-    }
+    const result = await req.server.services.orders.verifyOrder({
+      quantity,
+      shippingLat: shippingAddress.latitude,
+      shippingLng: shippingAddress.longitude,
+    });
 
     return {
       quantity,
-      totalBeforeDiscountCents: totals.totalBeforeDiscountCents,
-      discountPercent: totals.discountPercent,
-      discountCents: totals.discountCents,
-      totalAfterDiscountCents: totals.totalAfterDiscountCents,
-      shippingCostCents: plan.shippingCostCents,
-      isValid,
-      invalidReason,
-      shipmentPlan: plan.legs,
+      totalBeforeDiscountCents: result.totals.totalBeforeDiscountCents,
+      discountPercent: result.totals.discountPercent,
+      discountCents: result.totals.discountCents,
+      totalAfterDiscountCents: result.totals.totalAfterDiscountCents,
+      shippingCostCents: result.shippingCostCents,
+      isValid: result.isValid,
+      invalidReason: result.invalidReason,
+      shipmentPlan: result.shipmentPlan,
     };
   });
 
   app.post('/', {
     schema: {
       body: SubmitOrderRequestSchema,
+      headers: SubmitHeadersSchema,
       response: {
         201: SubmitOrderResponseSchema,
-        409: InsufficientStockErrorSchema,
+        409: SubmitConflictErrorSchema,
         422: InvalidOrderErrorSchema,
       },
     },
   }, async (req, reply) => {
+
     const { quantity, shippingAddress } = req.body;
     const idempotencyKey = req.headers['idempotency-key'];
-    const key = typeof idempotencyKey === 'string' ? idempotencyKey : undefined;
 
-    const order = await submitOrder({
+    const submitInput: Parameters<typeof req.server.services.orders.submitOrder>[0] = {
       quantity,
       shippingLat: shippingAddress.latitude,
       shippingLng: shippingAddress.longitude,
-      idempotencyKey: key,
-    });
+    };
 
-    const shipmentPlan = order.shipments.map((s) => ({
-      warehouseId: s.warehouseId,
-      warehouseName: s.warehouse.name,
-      warehouseLatitude: s.warehouse.latitude,
-      warehouseLongitude: s.warehouse.longitude,
-      quantity: s.quantity,
-      distanceKm: s.distanceKm,
-      shippingCostCents: s.shippingCostCents,
-    }));
+    if (idempotencyKey) submitInput.idempotencyKey = idempotencyKey;
 
-    return reply.status(201).send({
-      id: order.id,
-      orderNumber: order.orderNumber,
-      createdAt: order.createdAt.toISOString(),
-      quantity: order.quantity,
-      totalBeforeDiscountCents: order.totalBeforeDiscountCents,
-      discountCents: order.discountCents,
-      discountPercent: discountPercentForQuantity(order.quantity),
-      totalAfterDiscountCents: order.totalAfterDiscountCents,
-      shippingCostCents: order.shippingCostCents,
-      isValid: true,
-      invalidReason: null,
-      shipmentPlan,
-    });
+    const order = await req.server.services.orders.submitOrder(submitInput);
+    return reply.status(201).send(toSubmitResponse(order));
   });
 
   app.get('/', {
@@ -106,53 +80,65 @@ export const orderRoutes: FastifyPluginAsyncZod = async (app) => {
       response: { 200: OrdersListResponseSchema },
     },
   }, async (req) => {
-    const { limit, cursor } = req.query;
-    const cursorRow = cursor
-      ? await db().query.orders.findFirst({ where: eq(orders.id, cursor) })
-      : undefined;
 
-    if (cursor && !cursorRow) {
-      return { orders: [], nextCursor: null };
-    }
+    const listInput: Parameters<typeof req.server.services.orders.listOrders>[0] = {
+      limit: req.query.limit,
+    };
 
-    const where = cursorRow ? lt(orders.createdAt, cursorRow.createdAt) : undefined;
-
-    const rows = await db().query.orders.findMany({
-      where,
-      orderBy: [desc(orders.createdAt)],
-      limit: limit + 1,
-      with: { shipments: { with: { warehouse: true } } },
-    });
-
-    const hasMore = rows.length > limit;
-    const page = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore ? page[page.length - 1]?.id ?? null : null;
+    if (req.query.cursor) listInput.cursor = req.query.cursor;
+    const { rows, nextCursor } = await req.server.services.orders.listOrders(listInput);
 
     return {
-      orders: page.map((o) => ({
-        id: o.id,
-        orderNumber: o.orderNumber,
-        quantity: o.quantity,
-        shippingAddress: { latitude: o.shippingLat, longitude: o.shippingLng },
-        totalBeforeDiscountCents: o.totalBeforeDiscountCents,
-        discountCents: o.discountCents,
-        discountPercent: discountPercentForQuantity(o.quantity),
-        totalAfterDiscountCents: o.totalAfterDiscountCents,
-        shippingCostCents: o.shippingCostCents,
-        createdAt: o.createdAt.toISOString(),
-        isValid: true,
-        invalidReason: null,
-        shipments: o.shipments.map((s) => ({
-          warehouseId: s.warehouseId,
-          warehouseName: s.warehouse.name,
-          warehouseLatitude: s.warehouse.latitude,
-          warehouseLongitude: s.warehouse.longitude,
-          quantity: s.quantity,
-          distanceKm: s.distanceKm,
-          shippingCostCents: s.shippingCostCents,
-        })),
-      })),
+      orders: rows.map(toListItem),
       nextCursor,
     };
+    
   });
 };
+
+function toSubmitResponse(order: OrderWithShipments) {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt.toISOString(),
+    quantity: order.quantity,
+    totalBeforeDiscountCents: order.totalBeforeDiscountCents,
+    discountCents: order.discountCents,
+    discountPercent: discountPercentForQuantity(order.quantity),
+    totalAfterDiscountCents: order.totalAfterDiscountCents,
+    shippingCostCents: order.shippingCostCents,
+    isValid: true,
+    invalidReason: null,
+    shipmentPlan: order.shipments.map(toLeg),
+  };
+}
+
+function toListItem(o: OrderWithShipments) {
+  return {
+    id: o.id,
+    orderNumber: o.orderNumber,
+    quantity: o.quantity,
+    shippingAddress: { latitude: o.shippingLat, longitude: o.shippingLng },
+    totalBeforeDiscountCents: o.totalBeforeDiscountCents,
+    discountCents: o.discountCents,
+    discountPercent: discountPercentForQuantity(o.quantity),
+    totalAfterDiscountCents: o.totalAfterDiscountCents,
+    shippingCostCents: o.shippingCostCents,
+    createdAt: o.createdAt.toISOString(),
+    isValid: true,
+    invalidReason: null,
+    shipments: o.shipments.map(toLeg),
+  };
+}
+
+function toLeg(s: OrderWithShipments['shipments'][number]) {
+  return {
+    warehouseId: s.warehouseId,
+    warehouseName: s.warehouse.name,
+    warehouseLatitude: s.warehouse.latitude,
+    warehouseLongitude: s.warehouse.longitude,
+    quantity: s.quantity,
+    distanceKm: s.distanceKm,
+    shippingCostCents: s.shippingCostCents,
+  };
+}

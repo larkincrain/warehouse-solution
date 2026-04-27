@@ -50,6 +50,7 @@ export function planShipment(
   customer: LatLng,
   warehouses: WarehouseStockRow[],
 ): ShipmentPlan {
+
   const ranked = warehouses
     .filter((w) => w.stock > 0)
     .map((w) => ({
@@ -66,9 +67,12 @@ export function planShipment(
   let totalShippingCents = 0;
 
   for (const { w, distanceKm } of ranked) {
+    
     if (remaining === 0) break;
+
     const take = Math.min(w.stock, remaining);
     const cents = legCostCents(distanceKm, take);
+
     legs.push({
       warehouseId: w.id,
       warehouseName: w.name,
@@ -78,6 +82,7 @@ export function planShipment(
       distanceKm,
       shippingCostCents: cents,
     });
+
     remaining -= take;
     totalShippingCents += cents;
   }

@@ -2,44 +2,46 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import * as schema from './schema.js';
 
-export type Db = ReturnType<typeof createDb>;
+export interface CreateDbOptions {
+  poolMax?: number;
+  idleTimeoutMs?: number;
+  connectionTimeoutMs?: number;
+  statementTimeoutMs?: number;
+  logger?: { logQuery: (query: string, params: unknown[]) => void };
+  onPoolError?: (err: Error) => void;
+}
 
-export function createDb(connectionString: string) {
-  const pool = new pg.Pool({ connectionString, max: 10 });
-  pool.on('error', (err) => {
-    // Idle-client errors must not crash the process. Log to stderr;
-    // structured logging is wired up at the Fastify layer (Task 14).
-    // eslint-disable-next-line no-console
-    console.error('pg pool error', err);
+export type Db = ReturnType<typeof drizzle<typeof schema>> & {
+  _pool: pg.Pool;
+};
+
+export function createDb(connectionString: string, opts: CreateDbOptions = {}): Db {
+  const pool = new pg.Pool({
+    connectionString,
+    max: opts.poolMax ?? 10,
+    idleTimeoutMillis: opts.idleTimeoutMs ?? 30_000,
+    connectionTimeoutMillis: opts.connectionTimeoutMs ?? 5_000,
+    statement_timeout: opts.statementTimeoutMs ?? 10_000,
   });
-  const db = drizzle(pool, { schema });
-  return Object.assign(db, { _pool: pool });
+
+  pool.on('error', (err) => {
+    if (opts.onPoolError) {
+      opts.onPoolError(err);
+    } else {
+      // Fallback only when no logger is wired (e.g. ad-hoc scripts/tests).
+      // eslint-disable-next-line no-console
+      console.error('pg pool error', err);
+    }
+  });
+
+  const drizzleOpts: { schema: typeof schema; logger?: CreateDbOptions['logger'] } = { schema };
+  if (opts.logger) drizzleOpts.logger = opts.logger;
+
+  const db = drizzle(pool, drizzleOpts) as unknown as Db;
+  Object.assign(db, { _pool: pool });
+  return db;
 }
 
-let _db: Db | null = null;
-
-/**
- * Lazy singleton accessor for the Drizzle DB client.
- * Reads `DATABASE_URL` from `process.env` on first call. Tests must set the
- * env var before any code calls `db()`. Throws if `DATABASE_URL` is unset.
- */
-export function db(): Db {
-  if (!_db) {
-    const url = process.env.DATABASE_URL;
-    if (!url) throw new Error('DATABASE_URL is required');
-    _db = createDb(url);
-  }
-  return _db;
-}
-
-/**
- * Drain the pool and reset the singleton. Safe to call multiple times.
- * Caller must ensure no new queries are issued during/after the drain
- * (Fastify's `app.close()` should run first on SIGTERM).
- */
-export async function closeDb(): Promise<void> {
-  if (_db) {
-    await _db._pool.end();
-    _db = null;
-  }
+export async function closePool(db: Db): Promise<void> {
+  await db._pool.end();
 }

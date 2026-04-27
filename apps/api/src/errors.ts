@@ -26,6 +26,21 @@ export class NotFoundError extends Error {
 }
 
 /**
+ * Reusing an idempotency-key with a different request body is a programming
+ * error in the client — replaying must mean *the same operation*. We surface
+ * 409 Conflict so the client can detect the mistake instead of silently
+ * receiving the original (unrelated) order back.
+ */
+export class IdempotencyKeyConflictError extends Error {
+  readonly code = 'IDEMPOTENCY_KEY_REUSED' as const;
+  readonly httpStatus = 409;
+  constructor() {
+    super('Idempotency-Key was previously used with a different request body');
+    this.name = 'IdempotencyKeyConflictError';
+  }
+}
+
+/**
  * Internal sentinel: thrown inside `submitOrder`'s transaction when a concurrent
  * submit with the same idempotency key wins the unique-constraint race. Caller
  * catches this OUTSIDE the transaction (since the tx is already aborted) and
@@ -51,12 +66,28 @@ export function isUniqueViolation(e: unknown, constraintName?: string): boolean 
   return true;
 }
 
-export type KnownError = InsufficientStockError | InvalidOrderError | NotFoundError;
+export type KnownError =
+  | InsufficientStockError
+  | InvalidOrderError
+  | NotFoundError
+  | IdempotencyKeyConflictError;
 
 export function isKnownError(e: unknown): e is KnownError {
   return (
     e instanceof InsufficientStockError ||
     e instanceof InvalidOrderError ||
-    e instanceof NotFoundError
+    e instanceof NotFoundError ||
+    e instanceof IdempotencyKeyConflictError
   );
+}
+
+/**
+ * Detects Postgres transient errors that warrant a retry: deadlock_detected
+ * (40P01) and serialization_failure (40001). Both classes mean "the tx aborted
+ * because of concurrent activity, not because the request was bad".
+ */
+export function isTransientDbError(e: unknown): boolean {
+  if (typeof e !== 'object' || e === null) return false;
+  const code = (e as { code?: string }).code;
+  return code === '40001' || code === '40P01';
 }

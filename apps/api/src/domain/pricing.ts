@@ -27,9 +27,11 @@ export function discountPercentForQuantity(quantity: number): number {
  * All values are integer cents (banker's rounded).
  */
 export function calculateOrderTotals(quantity: number): OrderTotals {
+  
   const totalBeforeDiscountCents = quantity * UNIT_PRICE_CENTS;
   const discountPercent = discountPercentForQuantity(quantity);
   const discountCents = bankersRound((totalBeforeDiscountCents * discountPercent) / 100);
   const totalAfterDiscountCents = totalBeforeDiscountCents - discountCents;
+
   return { totalBeforeDiscountCents, discountPercent, discountCents, totalAfterDiscountCents };
 }

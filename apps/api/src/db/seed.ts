@@ -1,7 +1,8 @@
 /* eslint-disable no-console */
 import { sql } from 'drizzle-orm';
-import { db, closeDb } from './client.js';
+import { createDb, closePool } from './client.js';
 import { warehouses } from './schema.js';
+import { loadConfig } from '../config.js';
 
 const SEED = [
   { id: 'los-angeles', name: 'Los Angeles', latitude: 33.9425,    longitude: -118.408056, stock: 355 },
@@ -13,11 +14,12 @@ const SEED = [
 ];
 
 async function main() {
-  const d = db();
+  const cfg = loadConfig();
+  const d = createDb(cfg.DATABASE_URL);
   await d.insert(warehouses).values(SEED).onConflictDoNothing({ target: warehouses.id });
   const count = await d.execute(sql`select count(*)::int as c from warehouses`);
   console.error('warehouses count:', count.rows[0]);
-  await closeDb();
+  await closePool(d);
 }
 
 main().catch((e) => {
