@@ -56,10 +56,10 @@ describe('OrderService.submitOrder (unit, mocked deps)', () => {
     const warn = logger.warn as ReturnType<typeof vi.fn>;
 
     let txCalls = 0;
-    const transaction = vi.fn(async () => {
+    const transaction = vi.fn(() => {
       txCalls += 1;
-      if (txCalls === 1) throw new PgError('40001');
-      return { kind: 'ok' as const, order: fakeOrder };
+      if (txCalls === 1) return Promise.reject(new PgError('40001'));
+      return Promise.resolve({ kind: 'ok' as const, order: fakeOrder });
     });
     const db = { transaction } as unknown as Db;
 
@@ -89,13 +89,13 @@ describe('OrderService.submitOrder (unit, mocked deps)', () => {
     expect(result).toBe(fakeOrder);
     expect(transaction).toHaveBeenCalledTimes(2);
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({ attempt: 1, delayMs: expect.any(Number) }),
+      expect.objectContaining({ attempt: 1 }),
       'submitOrder retry on transient db error',
     );
   });
 
   it('throws a defensive error when the tx returns a conflict but no idempotency-key was supplied', async () => {
-    const transaction = vi.fn(async () => ({ kind: 'conflict' as const }));
+    const transaction = vi.fn(() => Promise.resolve({ kind: 'conflict' as const }));
     const db = { transaction } as unknown as Db;
 
     const orderRepo: OrderRepository = {

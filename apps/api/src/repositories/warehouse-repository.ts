@@ -12,13 +12,29 @@ export type WarehouseRow = typeof warehouses.$inferSelect;
 export type Querier = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export function createWarehouseRepository(db: Db) {
+
   return {
     listAll: (): Promise<WarehouseRow[]> =>
-      db.select().from(warehouses).orderBy(asc(warehouses.id)),
+      db
+        .select()
+        .from(warehouses)
+        .orderBy(
+          asc(
+            warehouses.id
+          )
+        ),
 
     /** Locks all warehouse rows in deterministic id order. Use inside a tx. */
     lockAllForUpdate: (tx: Querier): Promise<WarehouseRow[]> =>
-      tx.select().from(warehouses).orderBy(asc(warehouses.id)).for('update'),
+      tx
+        .select()
+        .from(warehouses)
+        .orderBy(
+          asc(
+            warehouses.id
+          )
+        )
+        .for('update'),
 
     decrementStock: async (tx: Querier, id: string, qty: number): Promise<void> => {
       await tx

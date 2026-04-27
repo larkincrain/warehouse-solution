@@ -9,7 +9,12 @@ type ShipmentInsert = typeof shipments.$inferInsert;
 
 export interface OrderWithShipments extends OrderRow {
   shipments: Array<typeof shipments.$inferSelect & {
-    warehouse: { id: string; name: string; latitude: number; longitude: number };
+    warehouse: { 
+      id: string; 
+      name: string; 
+      latitude: number; 
+      longitude: number 
+    };
   }>;
 }
 
@@ -18,19 +23,30 @@ export function createOrderRepository(db: Db) {
     findByIdempotencyKey: (key: string): Promise<OrderWithShipments | undefined> =>
       db.query.orders.findFirst({
         where: eq(orders.idempotencyKey, key),
-        with: { shipments: { with: { warehouse: true } } },
+        with: { 
+          shipments: { 
+            with: { 
+              warehouse: true 
+            } 
+          } 
+        },
       }),
 
     findById: (id: string): Promise<OrderWithShipments | undefined> =>
       db.query.orders.findFirst({
         where: eq(orders.id, id),
-        with: { shipments: { with: { warehouse: true } } },
+        with: { 
+          shipments: { 
+            with: { 
+              warehouse: true 
+            } 
+          } 
+        },
       }),
 
     /**
      * Inserts an order; on idempotency-key conflict returns `null` (caller
-     * re-reads the existing row). Single round-trip via ON CONFLICT — replaces
-     * the older try/catch-on-unique-violation pattern.
+     * re-reads the existing row). Single round-trip via ON CONFLICT
      */
     insertIfFresh: async (tx: Querier, values: OrderInsert): Promise<OrderRow | null> => {
       const inserted = await tx
@@ -42,7 +58,9 @@ export function createOrderRepository(db: Db) {
     },
 
     insertShipments: async (tx: Querier, rows: ShipmentInsert[]): Promise<void> => {
-      await tx.insert(shipments).values(rows);
+      await tx
+        .insert(shipments)
+        .values(rows);
     },
 
     /**
