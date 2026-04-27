@@ -10,3 +10,4 @@ coverage/
 .idea/
 drizzle/meta/_journal.json.bak
 .fly/
+.claude/
