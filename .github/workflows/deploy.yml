@@ -1,0 +1,60 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { pull-requests: write }
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      APP_NAME: scos-oms-pr-${{ github.event.number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create preview app if missing
+        run: |
+          if ! flyctl status --app "$APP_NAME" >/dev/null 2>&1; then
+            flyctl apps create "$APP_NAME" --org personal
+            flyctl postgres create --name "${APP_NAME}-db" --region iad --vm-size shared-cpu-1x --volume-size 1 --org personal --initial-cluster-size 1
+            flyctl postgres attach --app "$APP_NAME" "${APP_NAME}-db"
+          fi
+      - run: flyctl deploy --app "$APP_NAME" --remote-only --config fly.toml
+      - name: Comment preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Preview deployed: https://${process.env.APP_NAME}.fly.dev/api/v1/ready`,
+            });
+
+  production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --app scos-oms-prod --remote-only
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf https://scos-oms-prod.fly.dev/api/v1/ready > /dev/null; then exit 0; fi
+            sleep 5
+          done
+          echo "smoke test failed; rolling back"
+          flyctl releases rollback --app scos-oms-prod
+          exit 1
