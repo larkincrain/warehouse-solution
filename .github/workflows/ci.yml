@@ -35,24 +35,10 @@ jobs:
       - run: npm run build -w @scos/shared
       - run: npm run typecheck
 
-  unit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npm run build -w @scos/shared
-      - run: npm run test:unit -w @scos/api
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-unit
-          path: apps/api/coverage
-
-  integration:
+  test:
+    # Combined unit + integration with coverage thresholds.
+    # Coverage gates are global (domain 100%, services 95%, routes 90%, errors 100%)
+    # so unit tests alone can't satisfy them — needs both layers in one process.
     runs-on: ubuntu-latest
     env:
       CONCURRENCY_ITERATIONS: 50
@@ -64,4 +50,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build -w @scos/shared
-      - run: npm run test:integration -w @scos/api
+      - run: npm test -w @scos/api
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: apps/api/coverage
