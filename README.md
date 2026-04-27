@@ -144,6 +144,6 @@ assumes the schema is already current.
 
 ## Submission
 
-- **Repository:** <fill in GitHub URL when remote is set up>
+- **Repository:** https://github.com/larkincrain/warehouse-solution
 - **Live deploy:** https://scos-oms-prod.fly.dev
 - **Email:** imogen.king@screencloud.io
