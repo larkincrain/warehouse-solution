@@ -1,0 +1,37 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @scos/shared
+      - name: Start compose stack
+        run: docker compose -f docker-compose.e2e.yml up -d --build
+      - name: Wait for ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/v1/ready > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose -f docker-compose.e2e.yml logs
+          exit 1
+      - run: npm run test:e2e -w @scos/api
+      - if: always()
+        run: docker compose -f docker-compose.e2e.yml logs
+      - if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v
