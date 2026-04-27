@@ -2916,8 +2916,11 @@ flyctl auth login
 - [ ] **Step 2: Provision the production app + Postgres**
 
 ```bash
-flyctl launch --no-deploy --copy-config --name scos-oms-prod --region iad
-flyctl postgres create --name scos-oms-prod-db --region iad --vm-size shared-cpu-1x --volume-size 1
+flyctl apps create scos-oms-prod --org personal
+# Note: flyctl postgres is the legacy Unmanaged offering. Production should use `fly mpg`
+# (Managed Postgres) once promoted; for this take-home, legacy is fine. flyctl prints a
+# deprecation notice but the command still works.
+flyctl postgres create --name scos-oms-prod-db --region iad --vm-size shared-cpu-1x --volume-size 1 --org personal --initial-cluster-size 1
 flyctl postgres attach --app scos-oms-prod scos-oms-prod-db
 ```
 
@@ -2933,7 +2936,7 @@ primary_region = "iad"
   dockerfile = "apps/api/Dockerfile"
 
 [deploy]
-  release_command = "sh -c 'npm run db:migrate -w @scos/api && npm run db:seed -w @scos/api'"
+  release_command = "sh -c 'node apps/api/dist/db/migrate.js && node apps/api/dist/db/seed.js'"
 
 [env]
   NODE_ENV = "production"
