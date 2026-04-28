@@ -81,9 +81,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     },
     transform: jsonSchemaTransform,
   });
-  if (opts.nodeEnv !== 'production') {
-    await app.register(swaggerUi, { routePrefix: '/docs' });
-  }
+  await app.register(swaggerUi, { routePrefix: '/docs' });
 
   // setErrorHandler MUST be registered BEFORE child plugin contexts.
   // Fastify v5 only inherits error handlers into children registered AFTER
