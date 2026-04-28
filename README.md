@@ -132,9 +132,6 @@ assumes the schema is already current.
 - **Observability.** OpenTelemetry traces across verify/submit, structured
   pino logs with request IDs, Prometheus metrics on shipping-rejection rate
   and per-warehouse fulfillment frequency.
-- **Property-based tests** on the planner via fast-check.
-- **Carrier integration.** Replace the flat $0.01/kg/km rate with real
-  carrier APIs (FedEx, DHL); turn the planner into a min-cost flow problem.
 - **Admin endpoints** for stock adjustment, manual order overrides, refunds.
 - **Frontend** consuming the typed GET endpoints already in place.
 - **Multi-product support.** Currently hardcoded to one SKU; the schema
@@ -146,4 +143,3 @@ assumes the schema is already current.
 
 - **Repository:** https://github.com/larkincrain/warehouse-solution
 - **Live deploy:** https://scos-oms-prod.fly.dev
-- **Email:** imogen.king@screencloud.io

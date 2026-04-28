@@ -11,8 +11,7 @@ export interface OrderTotals {
 }
 
 /**
- * Returns the discount percentage (0/5/10/15/20) for a given order quantity.
- * Highest tier reached, not stacked.
+ * Returns the discount percentage for a given order quantity.
  */
 export function discountPercentForQuantity(quantity: number): number {
   if (quantity >= 250) return 20;
@@ -27,11 +26,16 @@ export function discountPercentForQuantity(quantity: number): number {
  * All values are integer cents (banker's rounded).
  */
 export function calculateOrderTotals(quantity: number): OrderTotals {
-  
+
   const totalBeforeDiscountCents = quantity * UNIT_PRICE_CENTS;
   const discountPercent = discountPercentForQuantity(quantity);
   const discountCents = bankersRound((totalBeforeDiscountCents * discountPercent) / 100);
   const totalAfterDiscountCents = totalBeforeDiscountCents - discountCents;
 
-  return { totalBeforeDiscountCents, discountPercent, discountCents, totalAfterDiscountCents };
+  return { 
+    totalBeforeDiscountCents, 
+    discountPercent, 
+    discountCents, 
+    totalAfterDiscountCents 
+  };
 }

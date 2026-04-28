@@ -47,7 +47,9 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   registerDb(app, dbOpts);
 
-  registerServices(app, { txMaxRetries: opts.txMaxRetries ?? 3 });
+  registerServices(app, { 
+    txMaxRetries: opts.txMaxRetries ?? 3 
+  });
 
   // Slow-request observability. Per-query timing requires a deeper Drizzle
   // hook; request-level tracking is the highest-signal addition we can make

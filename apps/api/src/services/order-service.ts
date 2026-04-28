@@ -60,6 +60,8 @@ export function createOrderService(deps: OrderServiceDeps) {
   async function verifyOrder(input: VerifyInput): Promise<VerifyResult> {
 
     const warehouses = await warehouseRepo.listAll();
+
+    // calculate the shipment plans
     const plan = planShipment(
       input.quantity,
       { 
@@ -68,6 +70,8 @@ export function createOrderService(deps: OrderServiceDeps) {
       },
       warehouses,
     );
+    
+    // Calculate cost of the order (applying discounts for bulk orders)
     const totals = calculateOrderTotals(input.quantity);
 
     let isValid = plan.feasible;
@@ -151,11 +155,6 @@ export function createOrderService(deps: OrderServiceDeps) {
         // tx (rolls back the locks) so we can re-read the winner outside.
         if (!created) return { kind: 'conflict' as const };
 
-        // after the transaction has been committed, then we decrement the stock in each warehouse. 
-        // This is because the shipment plan is based on the stock levels at the time of the order creation, 
-        // and we want to avoid a scenario where we create an order based on available stock but then fail to decrement it due to a transaction conflict. 
-        // By doing this after the order is created, we ensure that we only decrement stock for orders that have been successfully created, 
-        // and we can handle any conflicts that arise from concurrent stock decrements separately.
         for (const leg of plan.legs) {
           await warehouseRepo.decrementStock(tx, leg.warehouseId, leg.quantity);
         }
